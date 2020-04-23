@@ -1,0 +1,1 @@
+cmd_/home/lemony/Documents/my_kprobe/demo1.ko := ld -r -m elf_x86_64 -z max-page-size=0x200000 -T ./scripts/module-common.lds --build-id  -o /home/lemony/Documents/my_kprobe/demo1.ko /home/lemony/Documents/my_kprobe/demo1.o /home/lemony/Documents/my_kprobe/demo1.mod.o ;  true
