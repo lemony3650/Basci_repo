@@ -1,13 +1,34 @@
-/*******************************************************************
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <fcntl.h>
+
+
+/*******************************************************************************
  * epoll
  * 1.int epoll_create(int size);
  * 2.int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event)
+ *                  epoll句柄   
  * 3.epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
-********************************************************************/
+********************************************************************************/
+typedef union epoll_data 
+{
+    void     *ptr;
+    int      fd;
+    uint32_t u32;
+    uint64_t u64;
+}epoll_data_t;
 
-// 1. epoll_create创建一个epoll实例，被用来调用ctl | wait
+struct epoll_event {
+    uint32_t events;
+    epoll_data_t data;
+};
 
-// 2. epoll_ctl增加|删除监控事件  EPOLL_CTL_ADD|EPOLL_CTL_DEL|EPOLL_CTL_MOD
+// 1. epoll_create 创建一个epoll实例，被用来调用ctl | wait
+// 2. epoll_ctl 增加|删除监控事件  EPOLL_CTL_ADD|EPOLL_CTL_DEL|EPOLL_CTL_MOD
 /********************************************************
 * EPOLLIN：表示对应的文件描述字可以读；
 * EPOLLOUT：表示对应的文件描述字可以写；
@@ -15,9 +36,8 @@
 * EPOLLHUP：表示对应的文件描述字被挂起；
 * EPOLLET：设置为 edge-triggered，默认为 level-triggered
 *********************************************************/
+// 3.epoll_wait返回给用户空间需要处理的I/O事件，数组的每个元素都是一个需要处理的事件
 
-
-#include "lib/common.h"
 
 #define MAXEVENTS 128
 
@@ -40,17 +60,19 @@ int main(int argc, char **argv) {
 
     listen_fd = tcp_nonblocking_server_listen(SERV_PORT);
 
-    efd = epoll_create1(0);
-    if (efd == -1) {
-        error(1, errno, "epoll create failed");
-    }
 
+    // 1. 创建epoll实例
+    efd = epoll_create1(0);
+    if (efd == -1) 
+        error(1, errno, "epoll create failed");
+    
+    // 2. 初始化 fd && event
     event.data.fd = listen_fd;
     event.events = EPOLLIN | EPOLLET;
-    if (epoll_ctl(efd, EPOLL_CTL_ADD, listen_fd, &event) == -1) {
+    if (epoll_ctl(efd, EPOLL_CTL_ADD, listen_fd, &event) == -1) 
         error(1, errno, "epoll_ctl add listen fd failed");
-    }
-
+    
+    // 3. 返回事件
     /* Buffer where events are returned */
     events = calloc(MAXEVENTS, sizeof(event));
 
@@ -58,9 +80,8 @@ int main(int argc, char **argv) {
         n = epoll_wait(efd, events, MAXEVENTS, -1);
         printf("epoll_wait wakeup\n");
         for (i = 0; i < n; i++) {
-            if ((events[i].events & EPOLLERR) ||
-                (events[i].events & EPOLLHUP) ||
-                (!(events[i].events & EPOLLIN))) {
+            if ((events[i].events & EPOLLERR) || (events[i].events & EPOLLHUP) ||
+                                                (!(events[i].events & EPOLLIN))) {
                 fprintf(stderr, "epoll error\n");
                 close(events[i].data.fd);
                 continue;
